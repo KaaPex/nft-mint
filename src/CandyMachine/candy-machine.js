@@ -135,6 +135,8 @@ export const getCandyMachineState = async (
   const itemsRedeemed = state.itemsRedeemed.toNumber();
   const itemsRemaining = itemsAvailable - itemsRedeemed;
 
+  console.log(state);
+
   return {
     id: candyMachineId,
     program,

@@ -8,26 +8,38 @@ import './CandyMachine.css';
 
 const CandyMachine = ({walletAddress}) => {
 
-  const [state, setState] = useState(null);
+  const [candyMachine, setCandyMachine] = useState(null);
 
-  useEffect(async () => {
+  useEffect( () => {
     const rpcHost = process.env.REACT_APP_SOLANA_RPC_HOST;
     const connection = new Connection(rpcHost);
 
-    const state = await getCandyMachineState(walletAddress, process.env.REACT_APP_CANDY_MACHINE_ID, connection);
-    setState(state);
+    const getState = async () => {
+      const newState = await getCandyMachineState(walletAddress, process.env.REACT_APP_CANDY_MACHINE_ID, connection);
+      setCandyMachine(newState);
+    };
+
+    getState();
   }, []);
 
-  const mintToken = async () => {
-    debugger;
-    let mintResult = await mintOneToken(state, walletAddress.publicKey);
-    console.log(mintResult);
+  const mintToken =  () => {
+    const mintResult = async () => {
+      const mint = await mintOneToken(candyMachine, walletAddress.publicKey);
+    };
+
+    mintResult();
   }
+
+  const liveDateString = goLiveDate => `${new Date(
+      goLiveDate * 1000
+    ).toGMTString()}`;
 
   return (
     <div className="machine-container">
-      <p>Drop Date:</p>
-      <p>Items Minted:</p>
+      <p>{`Drop Date: ${liveDateString(candyMachine.state.goLiveDate.toNumber())}`}</p>
+
+      <p>{`Items Minted: ${candyMachine.state.itemsRedeemed} / ${candyMachine.state.itemsAvailable}`}</p>
+
       <button className="cta-button mint-button" onClick={mintToken}>
         Mint NFT
       </button>
