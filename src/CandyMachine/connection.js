@@ -1,10 +1,14 @@
-import { Transaction } from '@solana/web3.js';
+import {
+  Transaction,
+} from '@solana/web3.js';
 
 import { WalletNotConnectedError } from '@solana/wallet-adapter-base';
 
+export const DEFAULT_TIMEOUT = 60000;
+
 export const getErrorForTransaction = async (
   connection,
-  txid
+  txid,
 ) => {
   // wait for all confirmation before geting transaction
   await connection.confirmTransaction(txid, 'max');
@@ -38,7 +42,7 @@ export async function sendTransactionsWithManualRetry(
   wallet,
   instructions,
   signers,
-){
+) {
   let stopPoint = 0;
   let tries = 0;
   let lastInstructionsLength = null;
@@ -110,10 +114,12 @@ export const sendTransactions = async (
   successCallback = (txid, ind) => {},
   failCallback = (txid, ind) => false,
   block,
-) => {
+  beforeTransactions = [],
+  afterTransactions = [],
+)=> {
   if (!wallet.publicKey) throw new WalletNotConnectedError();
 
-  const unsignedTxns = [];
+  const unsignedTxns = beforeTransactions;
 
   if (!block) {
     block = await connection.getRecentBlockhash(commitment);
@@ -142,12 +148,20 @@ export const sendTransactions = async (
 
     unsignedTxns.push(transaction);
   }
+  unsignedTxns.push(...afterTransactions);
 
-  const signedTxns = await wallet.signAllTransactions(unsignedTxns);
-
+  const partiallySignedTransactions = unsignedTxns.filter(t =>
+    t.signatures.find(sig => sig.publicKey.equals(wallet.publicKey)),
+  );
+  const fullySignedTransactions = unsignedTxns.filter(
+    t => !t.signatures.find(sig => sig.publicKey.equals(wallet.publicKey)),
+  );
+  let signedTxns = await wallet.signAllTransactions(
+    partiallySignedTransactions,
+  );
+  signedTxns = fullySignedTransactions.concat(signedTxns);
   const pendingTxns= [];
 
-  let breakEarlyObject = { breakEarly: false, i: 0 };
   console.log(
     'Signed txns length',
     signedTxns.length,
@@ -160,28 +174,20 @@ export const sendTransactions = async (
       signedTransaction: signedTxns[i],
     });
 
-    signedTxnPromise
-      .then(({ txid, slot }) => {
-        successCallback(txid, i);
-      })
-      .catch(reason => {
-        failCallback(signedTxns[i], i);
-        if (sequenceType === 'StopOnFailure') {
-          breakEarlyObject.breakEarly = true;
-          breakEarlyObject.i = i;
-        }
-      });
-
     if (sequenceType !== 'Parallel') {
       try {
-        await signedTxnPromise;
+        await signedTxnPromise.then(({ txid, slot }) =>
+          successCallback(txid, i),
+        );
+        pendingTxns.push(signedTxnPromise);
       } catch (e) {
-        console.log('Caught failure', e);
-        if (breakEarlyObject.breakEarly) {
-          console.log('Died on ', breakEarlyObject.i);
-          // Return the txn we failed on by index
+        console.log('Failed at txn index:', i);
+        console.log('Caught failure:', e);
+
+        failCallback(signedTxns[i], i);
+        if (sequenceType === 'StopOnFailure') {
           return {
-            number: breakEarlyObject.i,
+            number: i,
             txs: await Promise.all(pendingTxns),
           };
         }
@@ -192,7 +198,8 @@ export const sendTransactions = async (
   }
 
   if (sequenceType !== 'Parallel') {
-    await Promise.all(pendingTxns);
+    const result = await Promise.all(pendingTxns);
+    return { number: signedTxns.length, txs: result };
   }
 
   return { number: signedTxns.length, txs: await Promise.all(pendingTxns) };
@@ -210,27 +217,32 @@ export const sendTransaction = async (
 ) => {
   if (!wallet.publicKey) throw new WalletNotConnectedError();
 
-  let transaction = new Transaction();
-  instructions.forEach(instruction => transaction.add(instruction));
-  transaction.recentBlockhash = (
-    block || (await connection.getRecentBlockhash(commitment))
-  ).blockhash;
-
-  if (includesFeePayer) {
-    transaction.setSigners(...signers.map(s => s.publicKey));
+  let transaction;
+  if (instructions instanceof Transaction) {
+    transaction = instructions;
   } else {
-    transaction.setSigners(
-      // fee payed by the wallet owner
-      wallet.publicKey,
-      ...signers.map(s => s.publicKey),
-    );
-  }
+    transaction = new Transaction();
+    instructions.forEach(instruction => transaction.add(instruction));
+    transaction.recentBlockhash = (
+      block || (await connection.getRecentBlockhash(commitment))
+    ).blockhash;
 
-  if (signers.length > 0) {
-    transaction.partialSign(...signers);
-  }
-  if (!includesFeePayer) {
-    transaction = await wallet.signTransaction(transaction);
+    if (includesFeePayer) {
+      transaction.setSigners(...signers.map(s => s.publicKey));
+    } else {
+      transaction.setSigners(
+        // fee payed by the wallet owner
+        wallet.publicKey,
+        ...signers.map(s => s.publicKey),
+      );
+    }
+
+    if (signers.length > 0) {
+      transaction.partialSign(...signers);
+    }
+    if (!includesFeePayer) {
+      transaction = await wallet.signTransaction(transaction);
+    }
   }
 
   const rawTransaction = transaction.serialize();
@@ -270,7 +282,7 @@ export const sendTransactionWithRetry = async (
   wallet,
   instructions,
   signers,
-  commitment = 'singleGossip',
+  commitment= 'singleGossip',
   includesFeePayer = false,
   block,
   beforeSend,
@@ -316,14 +328,13 @@ export const getUnixTs = () => {
   return new Date().getTime() / 1000;
 };
 
-const DEFAULT_TIMEOUT = 15000;
-
 export async function sendSignedTransaction({
-  signedTransaction,
-  connection,
-  timeout = DEFAULT_TIMEOUT,
-}) {
+                                              signedTransaction,
+                                              connection,
+                                              timeout = DEFAULT_TIMEOUT,
+                                            }) {
   const rawTransaction = signedTransaction.serialize();
+
   const startTime = getUnixTs();
   let slot = 0;
   const txid = await connection.sendRawTransaction(
@@ -427,7 +438,7 @@ async function awaitTransactionSignatureConfirmation(
   connection,
   commitment = 'recent',
   queryStatus = false,
-){
+) {
   let done = false;
   let status = {
     slot: 0,
@@ -501,13 +512,13 @@ async function awaitTransactionSignatureConfirmation(
     }
   });
 
-  //@ts-ignore
   if (connection._signatureSubscriptions[subId])
     connection.removeSignatureListener(subId);
   done = true;
   console.log('Returning status', status);
   return status;
 }
+
 export function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }

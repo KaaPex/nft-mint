@@ -1,4 +1,7 @@
 import React, {useEffect,useState} from 'react';
+
+import CandyMachine from './CandyMachine';
+
 import './App.css';
 
 const App = () => {
@@ -60,6 +63,8 @@ const App = () => {
           <p className="sub-text">NFT drop machine with fair mint</p>
 
           {!walletAddress && renderNotConnectedContainer()}
+
+          {walletAddress && <CandyMachine walletAddress={window.solana} />}
         </div>
 
         <div className="footer-container">

@@ -1,0 +1,20 @@
+{
+  "name": "Luffy_Look",
+  "symbol": "OP",
+  "image": "1.png",
+  "description": "One Piece Luffy",
+  "properties": {
+    "files": [
+      {
+        "uri": "1.png",
+        "type": "image/png"
+      }
+    ],
+    "creators": [
+      {
+        "address": "3ikEiH8mDXXoKVBqEw8eCE41KVjMyGr6Ej8UxHp3EGet",
+        "share": 100
+      }
+    ]
+  }
+}
