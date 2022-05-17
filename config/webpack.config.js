@@ -295,6 +295,7 @@ module.exports = function (webpackEnv) {
     resolve: {
       fallback: {
         assert: require.resolve('assert'),
+        buffer: require.resolve('buffer'),
       },
       // This allows you to set a fallback for where webpack should look for modules.
       // We placed these paths second because we want `node_modules` to "win"

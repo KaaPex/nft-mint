@@ -1,7 +1,8 @@
 import {Program, AnchorProvider, web3} from '@project-serum/anchor';
-
+import buffer from 'buffer';
 import { MintLayout, TOKEN_PROGRAM_ID, Token } from '@solana/spl-token';
 import {
+  PublicKey,
   SystemProgram,
   SYSVAR_SLOT_HASHES_PUBKEY,
 } from '@solana/web3.js';
@@ -113,7 +114,7 @@ const createAssociatedTokenAccountInstruction = (
   return new web3.TransactionInstruction({
     keys,
     programId: SPL_ASSOCIATED_TOKEN_ACCOUNT_PROGRAM_ID,
-    data: Buffer.from([]),
+    data: buffer.Buffer.from([]),
   });
 };
 
@@ -168,10 +169,10 @@ const getMasterEdition = async (
   return (
     await web3.PublicKey.findProgramAddress(
       [
-        Buffer.from('metadata'),
+        buffer.Buffer.from('metadata'),
         TOKEN_METADATA_PROGRAM_ID.toBuffer(),
         mint.toBuffer(),
-        Buffer.from('edition'),
+        buffer.Buffer.from('edition'),
       ],
       TOKEN_METADATA_PROGRAM_ID,
     )
@@ -184,7 +185,7 @@ const getMetadata = async (
   return (
     await web3.PublicKey.findProgramAddress(
       [
-        Buffer.from('metadata'),
+        buffer.Buffer.from('metadata'),
         TOKEN_METADATA_PROGRAM_ID.toBuffer(),
         mint.toBuffer(),
       ],
@@ -196,8 +197,9 @@ const getMetadata = async (
 export const getCandyMachineCreator = async (
   candyMachine,
 ) => {
+  const candyMachineID = new PublicKey(candyMachine);
   return await web3.PublicKey.findProgramAddress(
-    [Buffer.from('candy_machine'), candyMachine.toBuffer()],
+    [buffer.Buffer.from('candy_machine'), candyMachineID.toBuffer()],
     CANDY_MACHINE_PROGRAM,
   );
 };
@@ -205,8 +207,9 @@ export const getCandyMachineCreator = async (
 export const getCollectionPDA = async (
   candyMachineAddress,
 ) => {
+  const candyMachineID = new PublicKey(candyMachineAddress);
   return await web3.PublicKey.findProgramAddress(
-    [Buffer.from('collection'), candyMachineAddress.toBuffer()],
+    [buffer.Buffer.from('collection'), candyMachineID.toBuffer()],
     CANDY_MACHINE_PROGRAM,
   );
 };
@@ -219,10 +222,10 @@ export const getCollectionAuthorityRecordPDA = async (
   return (
     await web3.PublicKey.findProgramAddress(
       [
-        Buffer.from('metadata'),
+        buffer.Buffer.from('metadata'),
         TOKEN_METADATA_PROGRAM_ID.toBuffer(),
         mint.toBuffer(),
-        Buffer.from('collection_authority'),
+        buffer.Buffer.from('collection_authority'),
         newAuthority.toBuffer(),
       ],
       TOKEN_METADATA_PROGRAM_ID,
